@@ -30,9 +30,9 @@ const (
 
 // PaymentRequest represents the incoming payment request
 type PaymentRequest struct {
-	CorrelationID string `json:"correlationId"`
-	Amount        int64  `json:"amount"`
-	ProcessorType string `json:"processorType"` // This will be set internally
+	CorrelationID string  `json:"correlationId"`
+	Amount        float64 `json:"amount"`
+	ProcessorType string  `json:"processorType"` // This will be set internally
 }
 
 // PaymentSummaryResponse represents the summary of payments
@@ -43,8 +43,8 @@ type PaymentSummaryResponse struct {
 
 // Summary represents the aggregated data for a processor
 type Summary struct {
-	TotalRequests int64 `json:"totalRequests"`
-	TotalAmount   int64 `json:"totalAmount"`
+	TotalRequests int64   `json:"totalRequests"`
+	TotalAmount   float64 `json:"totalAmount"`
 }
 
 // ServiceHealthResponse represents the health check response from a processor
@@ -165,7 +165,7 @@ func handlePayments(w http.ResponseWriter, r *http.Request) {
 	// Atomically update summary in Redis
 	_, err = redisClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		pipe.IncrBy(ctx, selectedProcessor+"_total_requests", 1)
-		pipe.IncrBy(ctx, selectedProcessor+"_total_amount", req.Amount)
+		pipe.IncrByFloat(ctx, selectedProcessor+"_total_amount", req.Amount)
 		pipe.SAdd(ctx, "processed_payments", req.CorrelationID) // Mark as processed
 		return nil
 	})
@@ -195,7 +195,7 @@ func handlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultAmount, err := redisClient.Get(ctx, defaultProcessor+"_total_amount").Int64()
+	defaultAmount, err := redisClient.Get(ctx, defaultProcessor+"_total_amount").Float64()
 	if err == redis.Nil {
 		defaultAmount = 0
 	} else if err != nil {
@@ -214,7 +214,7 @@ func handlePaymentsSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fallbackAmount, err := redisClient.Get(ctx, fallbackProcessor+"_total_amount").Int64()
+	fallbackAmount, err := redisClient.Get(ctx, fallbackProcessor+"_total_amount").Float64()
 	if err == redis.Nil {
 		fallbackAmount = 0
 	} else if err != nil {

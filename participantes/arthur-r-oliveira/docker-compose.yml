@@ -4,7 +4,7 @@ services:
   nginx:
     image: nginx:1.25.1-alpine
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro,z
     ports:
       - "9999:9999"
     depends_on:
@@ -16,7 +16,8 @@ services:
           cpus: '0.1'
           memory: '20MB'
     networks:
-      - rinha-net
+      - payment-processor
+      - payment-processor-db
 
   api01:
     image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
@@ -33,7 +34,8 @@ services:
           cpus: '0.7'
           memory: '155MB'
     networks:
-      - rinha-net
+      - payment-processor
+      - payment-processor-db
 
   api02:
     image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
@@ -50,7 +52,8 @@ services:
           cpus: '0.7'
           memory: '155MB'
     networks:
-      - rinha-net
+      - payment-processor
+      - payment-processor-db
 
   redis:
     image: redis:7.2.0-alpine
@@ -62,8 +65,12 @@ services:
           cpus: '0.1'
           memory: '20MB'
     networks:
-      - rinha-net
+      - payment-processor
+      - payment-processor-db
 
 networks:
-  rinha-net:
+  payment-processor:
+    name: payment-processor
+    driver: bridge
+  payment-processor-db:
     driver: bridge
