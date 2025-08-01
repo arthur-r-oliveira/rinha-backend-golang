@@ -8,69 +8,216 @@ services:
     ports:
       - "9999:9999"
     depends_on:
-      - api01
-      - api02
+      api01:
+        condition: service_healthy
+      api02:
+        condition: service_healthy
+      api03:
+        condition: service_healthy
+      api04:
+        condition: service_healthy
+      api05:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           cpus: '0.1'
-          memory: '20MB'
+          memory: '40MB'
     networks:
       - payment-processor
-      - payment-processor-db
+    restart: on-failure
 
   api01:
     image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
     hostname: api01
     environment:
+      - MODE=api
+      - WORKER_HOST=worker
+      - WORKER_PORT=8081
+      - PORT=8080
+      - GOMAXPROCS=1
       - REDIS_ADDR=redis:6379
-      - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
-      - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
-    depends_on:
-      - redis
     deploy:
       resources:
         limits:
-          cpus: '0.7'
-          memory: '155MB'
+          cpus: '0.2'
+          memory: '40MB'
     networks:
       - payment-processor
-      - payment-processor-db
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
 
   api02:
     image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
     hostname: api02
     environment:
+      - MODE=api
+      - WORKER_HOST=worker
+      - WORKER_PORT=8081
+      - PORT=8080
+      - GOMAXPROCS=1
       - REDIS_ADDR=redis:6379
-      - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
-      - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
-    depends_on:
-      - redis
     deploy:
       resources:
         limits:
-          cpus: '0.7'
-          memory: '155MB'
+          cpus: '0.2'
+          memory: '40MB'
     networks:
       - payment-processor
-      - payment-processor-db
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  api03:
+    image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
+    hostname: api03
+    environment:
+      - MODE=api
+      - WORKER_HOST=worker
+      - WORKER_PORT=8081
+      - PORT=8080
+      - GOMAXPROCS=1
+      - REDIS_ADDR=redis:6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: '40MB'
+    networks:
+      - payment-processor
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  api04:
+    image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
+    hostname: api04
+    environment:
+      - MODE=api
+      - WORKER_HOST=worker
+      - WORKER_PORT=8081
+      - PORT=8080
+      - GOMAXPROCS=1
+      - REDIS_ADDR=redis:6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: '40MB'
+    networks:
+      - payment-processor
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  api05:
+    image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
+    hostname: api05
+    environment:
+      - MODE=api
+      - WORKER_HOST=worker
+      - WORKER_PORT=8081
+      - PORT=8080
+      - GOMAXPROCS=1
+      - REDIS_ADDR=redis:6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: '40MB'
+    networks:
+      - payment-processor
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
+    hostname: worker
+    environment:
+      - MODE=worker
+      - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
+      - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
+      - PORT=8081
+      - GOMAXPROCS=1
+      - REDIS_ADDR=redis:6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: '80MB'
+    networks:
+      - payment-processor
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
 
   redis:
     image: redis:7.2.0-alpine
     hostname: redis
-    command: redis-server --appendonly yes --maxmemory 100mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 20mb --maxmemory-policy allkeys-lru
     deploy:
       resources:
         limits:
           cpus: '0.1'
-          memory: '20MB'
+          memory: '30MB'
     networks:
       - payment-processor
-      - payment-processor-db
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
 networks:
   payment-processor:
-    name: payment-processor
-    driver: bridge
-  payment-processor-db:
-    driver: bridge
+    external: true
