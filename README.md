@@ -1,6 +1,6 @@
 # Rinha de Backend 2025 - Go Edition
 
-This is a backend solution for the Rinha de Backend 2025 challenge, implemented in Go with a focus on **reliability**, **consistency**, and **exploring performance optimization strategies**.
+This is a backend solution for the [Rinha de Backend 2025 challenge](https://github.com/zanfranceschi/rinha-de-backend-2025), implemented in Go with a focus on **reliability**, **consistency**, and **exploring performance optimization strategies**.
 
 ## 🚀 Architecture Overview
 
@@ -10,7 +10,7 @@ The solution employs a microservices-like architecture to handle payment process
 
 *   **Nginx Load Balancer:** Distributes incoming requests across multiple API instances.
 *   **API Gateway Instances (5x):** Stateless Go applications responsible for quickly accepting payment requests and queuing them for asynchronous processing.
-*   **Worker Service (1x)::** A dedicated Go service that processes queued payment requests, interacts with external payment processors, and maintains a consistent payment summary.
+*   **Worker Service (1x):** A dedicated Go service that processes queued payment requests, interacts with external payment processors, and maintains a consistent payment summary.
 *   **Redis:** Used as a persistent and fast data store for:
     *   Storing payment summary data (`totalRequests`, `totalAmount`) to ensure consistency across worker restarts and for the `GET /payments-summary` endpoint.
     *   Tracking processed payment `correlationId`s to ensure idempotency and prevent duplicate processing.
