@@ -1,6 +1,6 @@
 # Rinha de Backend 2025 - Go Edition
 
-This is a high-performance backend solution for the Rinha de Backend 2025 challenge, implemented in Go with a focus on **reliability**, **consistency**, and **performance**.
+This is a backend solution for the Rinha de Backend 2025 challenge, implemented in Go with a focus on **reliability**, **consistency**, and **exploring performance optimization strategies**.
 
 ## 🚀 Architecture Overview
 
@@ -119,10 +119,11 @@ Environment variables for services (set in `docker-compose.yml`):
 - Payment requests are queued and processed asynchronously by the worker, allowing the API to respond quickly.
 - This design handles external processor instability gracefully, preventing backpressure on the API.
 
-### 4. Performance Optimizations
-- Asynchronous processing maximizes API throughput.
+### 4. Performance Considerations
+- Asynchronous processing aims to maximize API throughput.
 - Redis provides fast read/write operations for summary data and processed IDs.
 - Connection pooling and keepalives are configured for efficient HTTP communication.
+- Further optimizations may be explored to reduce `payments_inconsistency`.
 
 ## 🔍 Troubleshooting
 
