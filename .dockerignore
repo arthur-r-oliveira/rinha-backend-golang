@@ -1,5 +1,9 @@
-*
-!target/*-runner
-!target/*-runner.jar
-!target/lib/*
-!target/quarkus-app/*
+# Ignore common development and build artifacts
+.git
+.gitignore
+.vscode/
+node_modules/
+target/
+
+# Allow specific files/directories needed for the build
+!api/

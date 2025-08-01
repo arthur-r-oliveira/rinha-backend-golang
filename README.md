@@ -55,7 +55,7 @@ You can use the `k6` tool provided in the `rinha-test` directory of the main cha
 # Navigate to the rinha-test directory
 cd ../../rinha-test
 
-# Run the k6 test (replace $MAX_REQUESTS, $participant, $directory with your values)
+# Run the k6 test (replace $MAX_REQUESTS, $participant, $TOKEN, $directory with your values)
 k6 run -e MAX_REQUESTS=$MAX_REQUESTS -e PARTICIPANT=$participant -e TOKEN=$(uuidgen) --log-output=file=$directory/k6.logs rinha.js
 ```
 
@@ -163,31 +163,31 @@ Here are the results from the most recent `k6` test run:
 ```
      data_received..................: 2.0 MB    33 kB/s
      data_sent......................: 3.4 MB    55 kB/s
-     default_total_amount...........: 201368.1  3296.698092/s
-     default_total_fee..............: 10068.405 164.834905/s
-     default_total_requests.........: 10119     165.663221/s
-     fallback_total_amount..........: 46864.5   767.242218/s
-     fallback_total_fee.............: 7029.675  115.086333/s
-     fallback_total_requests........: 2355      38.554885/s
-     http_req_blocked...............: p(99)=263.55µs count=16803
-     http_req_connecting............: p(99)=202.33µs count=16803
-     http_req_duration..............: p(99)=1.19ms   count=16803
-       { expected_response:true }...: p(99)=1.19ms   count=16803
-     http_req_failed................: 0.00%     ✓ 0           ✗ 16803
-     http_req_receiving.............: p(99)=76.72µs  count=16803
-     http_req_sending...............: p(99)=60.01µs  count=16803
-     http_req_tls_handshaking.......: p(99)=0s       count=16803
-     http_req_waiting...............: p(99)=1.09ms   count=16803
-     http_reqs......................: 16803     275.090335/s
-     iteration_duration.............: p(99)=1s       count=16765
-     iterations.....................: 16765     274.468218/s
-     payments_inconsistency.........: 18343     300.302447/s
-     total_transactions_amount......: 248232.6  4063.94031/s
-     transactions_failure...........: 0         0/s
-     transactions_success...........: 16753     274.27176/s
-     vus............................: 87        min=9         max=549
+     default_total_amount...........: 209706.2 3432.974433/s
+     default_total_fee..............: 10485.31 171.648722/s
+     default_total_requests.........: 10538    172.511278/s
+     fallback_total_amount..........: 46864.5  767.190623/s
+     fallback_total_fee.............: 7029.675 115.078594/s
+     fallback_total_requests........: 2355     38.552293/s
+     http_req_blocked...............: p(99)=270.35µs count=16801
+     http_req_connecting............: p(99)=205.81µs count=16801
+     http_req_duration..............: p(99)=1.18ms   count=16801
+       { expected_response:true }...: p(99)=1.18ms   count=16801
+     http_req_failed................: 0.00%    ✓ 0           ✗ 16801
+     http_req_receiving.............: p(99)=70.72µs  count=16801
+     http_req_sending...............: p(99)=56.18µs  count=16801
+     http_req_tls_handshaking.......: p(99)=0s       count=16801
+     http_req_waiting...............: p(99)=1.09ms   count=16801
+     http_reqs......................: 16801    275.039095/s
+     iteration_duration.............: p(99)=1s       count=16763
+     iterations.....................: 16763    274.41702/s
+     payments_inconsistency.........: 18763    307.15782/s
+     total_transactions_amount......: 256570.7 4200.165056/s
+     transactions_failure...........: 0        0/s
+     transactions_success...........: 16751    274.220575/s
+     vus............................: 84       min=9         max=549
 
-running (1m01.1s), 000/554 VUs, 16765 complete and 0 interrupted iterations
+running (1m01.1s), 000/554 VUs, 16763 complete and 0 interrupted iterations
 payments             ✓ [======================================] 000/550 VUs  1m0s
 payments_consistency ✓ [======================================] 1 VUs        1m0s
 stage_00             ✓ [======================================] 1 VUs        1s
@@ -200,8 +200,29 @@ stage_05             ✓ [======================================] 1 VUs        1
 
 ```
 curl http://localhost:9999/payments-summary
-{"default":{"totalRequests":10119,"totalAmount":201368.1},"fallback":{"totalRequests":2355,"totalAmount":46864.5}}
+{"default":{"totalRequests":10538,"totalAmount":209706.2},"fallback":{"totalRequests":2355,"totalAmount":46864.5}}
 ```
+
+## 🚧 Backlog and Future Improvements
+
+While the current architecture provides a solid foundation for reliability and consistency, the `payments_inconsistency` metric indicates areas for further optimization. Here are some potential improvements to explore:
+
+*   **Reduce `payments_inconsistency`:**
+    *   **Retry Mechanism:** Implement a more robust retry mechanism for failed calls to external payment processors within the worker. This could involve exponential backoff and a limited number of retries.
+    *   **Dead Letter Queue (DLQ):** For payments that consistently fail after retries, consider sending them to a DLQ for later inspection and manual intervention. This prevents them from being lost entirely.
+    *   **Idempotency Key Management:** Ensure that the `correlationId` is effectively used across all retries and external calls to prevent duplicate processing by the payment processors themselves.
+    *   **Health Check Strategy:** Refine the health check logic to be more adaptive to the external processors' behavior. For instance, instead of just a boolean `failing` status, consider using a more granular metric like response time or error rate to make more informed decisions about which processor to use.
+
+*   **Performance Enhancements:**
+    *   **Worker Concurrency:** Experiment with the number of goroutines (workers) processing the `paymentQueue` to find the optimal balance between resource utilization and throughput.
+    *   **Batching:** If possible, batch multiple payment requests when sending them to the external processors to reduce network overhead (though this might complicate idempotency and error handling).
+    *   **Connection Pooling Tuning:** Further fine-tune HTTP client connection pool parameters (`MaxIdleConns`, `MaxIdleConnsPerHost`, `IdleConnTimeout`) for both the API Gateway and Worker.
+
+*   **Codebase Refinements:**
+    *   **Error Handling:** Implement more granular and informative error handling throughout the application, especially for external service interactions.
+    *   **Logging:** Enhance logging to provide more insights into the payment processing flow, including successful and failed external calls, and Redis interactions.
+
+These are some initial thoughts, and further investigation and profiling would be necessary to pinpoint the most impactful optimizations.
 
 ## ⚖️ License
 
