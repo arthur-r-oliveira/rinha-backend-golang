@@ -10,7 +10,7 @@ The solution employs a microservices-like architecture to handle payment process
 
 *   **Nginx Load Balancer:** Distributes incoming requests across multiple API instances.
 *   **API Gateway Instances (5x):** Stateless Go applications responsible for quickly accepting payment requests and queuing them for asynchronous processing.
-*   **Worker Service (1x):** A dedicated Go service that processes queued payment requests, interacts with external payment processors, and maintains a consistent payment summary.
+*   **Worker Service (1x)::** A dedicated Go service that processes queued payment requests, interacts with external payment processors, and maintains a consistent payment summary.
 *   **Redis:** Used as a persistent and fast data store for:
     *   Storing payment summary data (`totalRequests`, `totalAmount`) to ensure consistency across worker restarts and for the `GET /payments-summary` endpoint.
     *   Tracking processed payment `correlationId`s to ensure idempotency and prevent duplicate processing.
@@ -23,6 +23,15 @@ The solution employs a microservices-like architecture to handle payment process
                                                                ↓
                                                              [Redis]
 ```
+
+## Architectural Rationale: Single Worker Strategy
+
+While a single worker might seem unconventional for a high-concurrent distributed system, it's a deliberate choice for this challenge due to specific constraints and goals:
+
+*   **Simplified Consistency:** The challenge heavily penalizes inconsistencies in payment summaries. A single worker centralizes all payment processing and summary updates, significantly simplifying consistency management by avoiding distributed transaction complexities.
+*   **Resource Efficiency:** Given tight CPU and memory limits, a single, highly optimized Go worker can efficiently utilize allocated resources for I/O-bound tasks (HTTP calls to external processors and Redis). Go's concurrency model excels at managing numerous concurrent I/O operations within a single process.
+*   **External Bottleneck:** The external payment processors are inherently unstable and slow. The single worker can effectively saturate their capacity, meaning adding more workers might not yield significant throughput gains. The API Gateway acts as a buffer, preventing backpressure from affecting API responsiveness.
+*   **Reduced Complexity:** A single worker simplifies deployment, monitoring, and debugging, reducing operational overhead in a time-constrained challenge.
 
 ## 🎯 Endpoints
 
