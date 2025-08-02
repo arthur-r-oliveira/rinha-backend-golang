@@ -159,6 +159,36 @@ The Worker implements a simple health check and circuit breaker pattern. It peri
 
 The application uses the `pgxpool` library to manage a pool of connections to the PostgreSQL database. This is a standard practice to improve performance by reusing database connections instead of creating a new one for every query.
 
+### 3.4. Database Schema (DDL)
+
+The application uses a single table named `payments` to store information about the payment requests. The application code itself is responsible for creating this table if it doesn't already exist.
+
+**DDL (Data Definition Language):**
+
+```sql
+CREATE TABLE IF NOT EXISTS payments (
+    correlation_id TEXT PRIMARY KEY,
+    amount         NUMERIC,
+    processor      TEXT,
+    created_at     TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**Table Creation in the Code:**
+
+This DDL statement is executed automatically when the application starts. You can find the code for this in the `config/config.go` and `gateway/payment_logger.go` files.
+
+**Example from `config/config.go`:**
+
+```go
+// in Init()
+if _, err = pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS payments (...)`); err != nil {
+    // ... error handling ...
+}
+```
+
+This ensures that the application can run without requiring manual database setup, which is convenient for development and deployment.
+
 ## 4. How to Run the Application
 
 The application can be run in two modes:
