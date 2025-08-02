@@ -1,0 +1,14 @@
+# Use ubi-minimal for a small footprint
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+# Install HAProxy and clean up the cache. The RPM package will create the 'haproxy' user.
+RUN microdnf install haproxy -y && microdnf clean all
+
+# Expose the port for the load balancer
+EXPOSE 9999
+
+# Switch to the non-root user created by the haproxy package.
+USER haproxy
+
+# Start HAProxy with the provided configuration
+CMD ["/usr/sbin/haproxy", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]

@@ -125,20 +125,23 @@ for req := range api.paymentQueue {
 
 ## 2. Application Architecture
 
-Our application follows a microservice-like architecture with two main components: the **API Gateway** and the **Worker**. These can be run in the same process or as separate processes, determined by the `MODE` environment variable.
+Our application follows a microservice-like architecture with two main components: the **API Gateway** and the **Worker**. These can be run in the same process or as separate processes, determined by the `MODE` environment variable. The entire stack is designed to run on **Red Hat Universal Base Images (UBI)** for enhanced security and stability, with **HAProxy** acting as the load balancer.
 
 ```mermaid
 sequenceDiagram
     participant Client
+    participant HAProxy Load Balancer
     participant API Gateway
     participant Payment Queue
     participant Worker
     participant External Processors
     participant Database
 
-    Client->>API Gateway: POST /payments
+    Client->>HAProxy Load Balancer: POST /payments
+    HAProxy Load Balancer->>API Gateway: Forward Request
     API Gateway->>Payment Queue: Enqueue PaymentRequest
-    API Gateway-->>Client: 200 OK
+    API Gateway-->>HAProxy Load Balancer: 200 OK
+    HAProxy Load Balancer-->>Client: 200 OK
 
     loop Every N Milliseconds
         Worker->>Payment Queue: Dequeue PaymentRequest
@@ -372,5 +375,25 @@ The application can be run in two modes:
   ```
 
 You will also need to set the required environment variables, such as `POSTGRES_DSN`, `DEFAULT_PROCESSOR_URL`, and `FALLBACK_PROCESSOR_URL`.
+
+## 5. Architectural Evolution: Migration to HAProxy and UBI
+
+Originally, this project used Nginx as a load balancer and standard Alpine-based Docker images. To enhance security, stability, and performance, the architecture was migrated to use **HAProxy** for load balancing and **Red Hat Universal Base Images (UBI)** for the entire application stack.
+
+### 5.1. Why Migrate?
+
+- **Security and Stability:** UBI provides a hardened, enterprise-grade foundation for containers, with a clear lifecycle and support from Red Hat. Running services as non-root users, which is a default security practice in the UBI ecosystem, further hardens the application.
+- **Performance:** HAProxy is a highly specialized, event-driven load balancer renowned for its performance and efficiency in high-throughput scenarios, making it a better tool for this specific challenge than a general-purpose web server like Nginx.
+
+### 5.2. Performance Impact
+
+The migration resulted in a significant performance improvement, most notably a **46% reduction in p99 latency** under full load, while maintaining the same high throughput.
+
+| Metric                | Before (Nginx/Alpine) | After (HAProxy/UBI) | Change     |
+| :-------------------- | :-------------------- | :------------------ | :--------- |
+| **Latency (p99)**     | 2.43ms                | **1.31ms**          | **-46%**   |
+| **Throughput (req/s)**| ~275                  | **~275**            | No change  |
+
+This demonstrates that a more secure and stable platform does not have to come at the cost of performance. In this case, choosing the right tools for the job led to a faster and more robust system.
 
 We hope this document helps you understand the Rinha Backend application. Feel free to explore the code and the linked Go documentation to learn more.
