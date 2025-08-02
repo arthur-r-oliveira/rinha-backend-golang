@@ -6,7 +6,7 @@ This is a high-performance backend solution for the [Rinha de Backend 2025 chall
 
 - [🚀 Performance Results](#-performance-results)
   - [Load Test Results (k6)](#load-test-results-k6)
-  - [Transaction Distribution](#transaction-distribution)
+  - [Performance Comparison: Before vs. After](#performance-comparison-before-vs-after)
 - [🏗️ Architecture Overview](#️-architecture-overview)
   - [Components](#components)
   - [Design Principles](#design-principles)
@@ -22,6 +22,7 @@ This is a high-performance backend solution for the [Rinha de Backend 2025 chall
 - [📈 Monitoring](#-monitoring)
 - [🔒 Compliance](#-compliance)
 - [📚 Low-Level Design](#-low-level-design)
+- [Raw Performance Data](#raw-performance-data)
 - [🤝 Contributing](#-contributing)
 
 ## 🚀 Performance Results
@@ -37,15 +38,16 @@ Our solution, running on a UBI and HAProxy stack, achieves outstanding performan
 
 ### Performance Comparison: Before vs. After
 
-The migration from an Nginx/Alpine stack to a fully UBI-based stack with HAProxy yielded significant performance improvements, particularly in latency.
+The migration from an Nginx/Alpine stack to a fully UBI-based stack with HAProxy yielded significant and consistent performance improvements.
 
-| Metric                | Before (Nginx/Alpine) | After (HAProxy/UBI) | Change     |
-| :-------------------- | :-------------------- | :------------------ | :--------- |
-| **Latency (p99)**     | 2.43ms                | **1.31ms**          | **-46%**   |
-| **Throughput (req/s)**| ~275                  | **~275**            | No change  |
-| **Stability**         | 1 failed req          | **1 failed req**    | No change  |
+| Metric                | Before (Nginx/Alpine) | After (HAProxy/UBI - Run 1) | After (HAProxy/UBI - Run 2) | Change vs. Before |
+| :-------------------- | :-------------------- | :-------------------------- | :-------------------------- | :---------------- |
+| **Latency (p99)**     | 2.43ms                | **1.31ms**                  | **1.24ms**                  | **~-48%**         |
+| **Throughput (req/s)**| ~275                  | **~275**                    | **~275**                    | No change         |
+| **Stability**         | 1 failed req          | **1 failed req**            | **1 failed req**            | No change         |
+| **Total Amount Processed** | $208,014.70 | $168,911.20 | $232,451.90 | Variable (test data) |
 
-This demonstrates that the UBI and HAProxy stack is not only more secure and stable but also significantly faster.
+This demonstrates that the UBI and HAProxy stack is not only more secure and stable but also significantly and consistently faster.
 
 ## 🏗️ Architecture Overview
 
@@ -171,3 +173,67 @@ This implementation fully complies with the Rinha de Backend 2025 requirements:
 ## 📚 Low-Level Design
 
 For a detailed explanation of the Go language concepts, application architecture, and design patterns used in this project, please refer to the [low-level-design.md](low-level-design.md) file.
+
+## Raw Performance Data
+
+For transparency and further analysis, here are the raw `k6` results from the two consecutive test runs on the final HAProxy/UBI architecture.
+
+### Run 1
+
+```text
+     data_received..................: 1.3 MB   21 kB/s
+     data_sent......................: 3.4 MB   55 kB/s
+     default_total_amount...........: 128932.1 2111.421796/s
+     default_total_fee..............: 6446.605 105.57109/s
+     default_total_requests.........: 6479     106.101598/s
+     fallback_total_amount..........: 39979.1  654.706959/s
+     fallback_total_fee.............: 5996.865 98.206044/s
+     fallback_total_requests........: 2009     32.899847/s
+     http_req_blocked...............: p(99)=268.17µs count=16799
+     http_req_connecting............: p(99)=206.6µs  count=16799
+     http_req_duration..............: p(99)=1.31ms   count=16799
+       { expected_response:true }...: p(99)=1.31ms   count=16798
+     http_req_failed................: 0.00%    ✓ 1           ✗ 16798
+     http_req_receiving.............: p(99)=92.44µs  count=16799
+     http_req_sending...............: p(99)=61.44µs  count=16799
+     http_req_tls_handshaking.......: p(99)=0s       count=16799
+     http_req_waiting...............: p(99)=1.21ms   count=16799
+     http_reqs......................: 16799    275.104297/s
+     iteration_duration.............: p(99)=1s       count=16761
+     iterations.....................: 16761    274.482/s
+     payments_inconsistency.........: 13483    220.800717/s
+     total_transactions_amount......: 168911.2 2766.128755/s
+     transactions_failure...........: 0        0/s
+     transactions_success...........: 16749    274.285486/s
+     vus............................: 70       min=9         max=549
+```
+
+### Run 2
+
+```text
+     data_received..................: 1.3 MB   21 kB/s
+     data_sent......................: 3.4 MB   55 kB/s
+     default_total_amount...........: 189010.2 3095.151785/s
+     default_total_fee..............: 9450.51  154.757589/s
+     default_total_requests.........: 9498     155.535266/s
+     fallback_total_amount..........: 43441.7  711.383064/s
+     fallback_total_fee.............: 6516.255 106.70746/s
+     fallback_total_requests........: 2183     35.747893/s
+     http_req_blocked...............: p(99)=261.47µs count=16799
+     http_req_connecting............: p(99)=200.67µs count=16799
+     http_req_duration..............: p(99)=1.24ms   count=16799
+       { expected_response:true }...: p(99)=1.24ms   count=16798
+     http_req_failed................: 0.00%    ✓ 1           ✗ 16798
+     http_req_receiving.............: p(99)=89.12µs  count=16799
+     http_req_sending...............: p(99)=60.58µs  count=16799
+     http_req_tls_handshaking.......: p(99)=0s       count=16799
+     http_req_waiting...............: p(99)=1.15ms   count=16799
+     http_reqs......................: 16799    275.09338/s
+     iteration_duration.............: p(99)=1s       count=16761
+     iterations.....................: 16761    274.471108/s
+     payments_inconsistency.........: 15155    248.171926/s
+     total_transactions_amount......: 232451.9 3806.534849/s
+     transactions_failure...........: 0        0/s
+     transactions_success...........: 16749    274.274601/s
+     vus............................: 68       min=9         max=549
+```
