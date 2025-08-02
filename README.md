@@ -2,6 +2,28 @@
 
 This is a high-performance backend solution for the [Rinha de Backend 2025 challenge](https://github.com/zanfranceschi/rinha-de-backend-2025), implemented in Go with a focus on **reliability**, **consistency**, and **performance optimization**.
 
+## Table of Contents
+
+- [🚀 Performance Results](#-performance-results)
+  - [Load Test Results (k6)](#load-test-results-k6)
+  - [Transaction Distribution](#transaction-distribution)
+- [🏗️ Architecture Overview](#️-architecture-overview)
+  - [Components](#components)
+  - [Design Principles](#design-principles)
+- [🔧 Technical Implementation](#-technical-implementation)
+  - [Key Features](#key-features)
+  - [Technology Stack](#technology-stack)
+- [📊 Resource Allocation](#-resource-allocation)
+- [🚀 Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+- [🧪 Load Testing](#-load-testing)
+- [🎯 Performance Optimizations](#-performance-optimizations)
+- [📈 Monitoring](#-monitoring)
+- [🔒 Compliance](#-compliance)
+- [📚 Low-Level Design](#-low-level-design)
+- [🤝 Contributing](#-contributing)
+
 ## 🚀 Performance Results
 
 Our solution achieves outstanding performance metrics:
@@ -139,10 +161,6 @@ This implementation fully complies with the Rinha de Backend 2025 requirements:
 - ✅ **Resource limits** (1.5 CPU / 350MB memory)
 - ✅ **Payment processing** with health monitoring
 - ✅ **Consistency guarantees** with duplicate prevention
-
-## 🤝 Contributing
-
-This is a performance-focused implementation designed to demonstrate high-throughput, reliable payment processing within strict resource constraints.
 
 ## 📚 Low-Level Design
 
