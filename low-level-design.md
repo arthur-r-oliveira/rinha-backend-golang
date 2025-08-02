@@ -38,7 +38,7 @@ Go is a statically typed, compiled language known for its simplicity, efficiency
 
 ### 1.2. Data Structures (Structs)
 
-In Go, you create complex data types using `structs`. A struct is a collection of fields. It's similar to a `class` in Java or C# but without methods.
+In Go, you create complex data types using `structs`. A struct is a collection of fields. It's similar to a `class` in Java or C# but without methods directly inside the struct definition.
 
 **Example from our code (`models/models.go`):**
 
@@ -54,6 +54,16 @@ type PaymentRequest struct {
 - **`type PaymentRequest struct { ... }`**: This defines a new type named `PaymentRequest` that is a struct.
 - **`CorrelationID string`**: This is a field named `CorrelationID` of type `string`.
 - **`` `json:"correlationId"` ``**: This is a struct tag. It provides metadata about the field. In this case, it tells the `encoding/json` package how to encode/decode this field to/from JSON.
+
+#### Data Structs vs. Behavioral Structs
+
+A key concept in this project's design is the separation of structs that hold data from structs that have behavior.
+
+- **Data-Only Structs (like in the `models` package):** The `models` package is specifically for structs that represent the data entities of the application, like `PaymentRequest`. These are often called Data Transfer Objects (DTOs). Their primary purpose is to be simple containers for data that is passed between different parts of the system or used in API responses.
+
+- **Structs with Behavior (like `APIGateway` and `Worker`):** You'll notice other, more complex structs outside the `models` package. For example, the `APIGateway` struct (in the `gateway` package) and the `Worker` struct (in the `worker` package) are not just data containers. They hold fields that manage the application's state (like HTTP clients, database connections, and channels) and have methods attached to them that implement the core logic of the application (like handling requests, processing payments, and running health checks).
+
+This separation is intentional and is a good practice in Go. It keeps the data definitions clean and decoupled from the business logic, making the code easier to understand, maintain, and test.
 
 - **Further Reading:**
     - [Structs](https://go.dev/tour/moretypes/2)
@@ -117,11 +127,37 @@ for req := range api.paymentQueue {
 
 Our application follows a microservice-like architecture with two main components: the **API Gateway** and the **Worker**. These can be run in the same process or as separate processes, determined by the `MODE` environment variable.
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Gateway
+    participant Payment Queue
+    participant Worker
+    participant External Processors
+    participant Database
+
+    Client->>API Gateway: POST /payments
+    API Gateway->>Payment Queue: Enqueue PaymentRequest
+    API Gateway-->>Client: 200 OK
+
+    loop Every N Milliseconds
+        Worker->>Payment Queue: Dequeue PaymentRequest
+        Worker->>Database: Check for duplicate CorrelationID
+        alt if not duplicate
+            Worker->>External Processors: Process Payment
+            alt if successful
+                Worker->>Database: Insert Payment
+            end
+        end
+    end
+```
+
 ### 2.1. `main.go` - The Entry Point
 
 The `main` function in `api/main.go` is the entry point of our application. It reads the `MODE` environment variable to decide whether to start the API Gateway or the Worker.
 
 ```go
+// api/main.go
 func main() {
     config.Init()
     mode := os.Getenv("MODE")
@@ -139,9 +175,30 @@ func main() {
 
 The `config` package (`api/config/config.go`) is responsible for initializing the application's configuration. It reads environment variables and sets up global variables, including the database connection pool.
 
+```go
+// api/config/config.go
+func Init() {
+    DefaultProcessorURL = os.Getenv("DEFAULT_PROCESSOR_URL")
+    FallbackProcessorURL = os.Getenv("FALLBACK_PROCESSOR_URL")
+    // ...
+    PostgresDSN = os.Getenv("POSTGRES_DSN")
+    // ...
+}
+```
+
 ### 2.3. `models` Package
 
 The `models` package (`api/models/models.go`) defines the data structures (structs) used throughout the application, such as `PaymentRequest` and `PaymentSummaryResponse`.
+
+```go
+// api/models/models.go
+type PaymentRequest struct {
+    CorrelationID string    `json:"correlationId"`
+    Amount        float64   `json:"amount"`
+    Timestamp     time.Time `json:"timestamp,omitempty"`
+    Processor     string    `json:"processor,omitempty"`
+}
+```
 
 ### 2.4. `gateway` Package
 
@@ -152,6 +209,44 @@ The `gateway` package (`api/gateway/gateway.go`) implements the API Gateway. Its
 - **Forwarding to Worker:** Goroutines running the `paymentForwarder` method continuously read from the `paymentQueue` and forward the payment requests to the Worker via an HTTP call.
 - **Asynchronous Logging:** The `PaymentLogger` (`api/gateway/payment_logger.go`) asynchronously logs payment requests to the database for compliance.
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant APIGateway
+    participant PaymentQueue
+    participant PaymentForwarder
+    participant Worker
+
+    Client->>APIGateway: POST /payments
+    APIGateway->>PaymentQueue: Enqueue PaymentRequest
+    APIGateway-->>Client: 200 OK
+
+    loop Multiple Goroutines
+        PaymentForwarder->>PaymentQueue: Dequeue PaymentRequest
+        PaymentForwarder->>Worker: POST /process-payment
+    end
+```
+
+**Code Snippet (`gateway/gateway.go`):**
+
+```go
+func (api *APIGateway) handlePayments(w http.ResponseWriter, r *http.Request) {
+    // ... (decode request)
+    select {
+    case api.paymentQueue <- req:
+        // ...
+    default:
+        http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+    }
+}
+
+func (api *APIGateway) paymentForwarder() {
+    for req := range api.paymentQueue {
+        api.forwardPayment(req)
+    }
+}
+```
+
 ### 2.5. `worker` Package
 
 The `worker` package (`api/worker/worker.go`) is responsible for the core business logic of processing payments.
@@ -160,6 +255,59 @@ The `worker` package (`api/worker/worker.go`) is responsible for the core busine
 - **Interacting with External Processors:** It calls the external payment processors (a "default" and a "fallback") to process the payment.
 - **Database Interaction:** It interacts with the PostgreSQL database to check for duplicate payments and to store the results of the payment processing.
 - **Health Checks:** It periodically checks the health of the external payment processors and updates their status.
+
+```mermaid
+sequenceDiagram
+    participant Gateway
+    participant Worker
+    participant Database
+    participant DefaultProcessor
+    participant FallbackProcessor
+
+    Gateway->>Worker: POST /process-payment
+    Worker->>Database: SELECT 1 FROM payments WHERE correlation_id = ?
+    alt if not exists
+        Worker->>DefaultProcessor: POST /payments (Health Check)
+        alt if DefaultProcessor is healthy
+            Worker->>DefaultProcessor: POST /payments
+            Worker->>Database: INSERT INTO payments
+        else
+            Worker->>FallbackProcessor: POST /payments (Health Check)
+            alt if FallbackProcessor is healthy
+                Worker->>FallbackProcessor: POST /payments
+                Worker->>Database: INSERT INTO payments
+            end
+        end
+    end
+```
+
+**Code Snippet (`worker/worker.go`):**
+
+```go
+func (w *Worker) handleProcessPayment(wr http.ResponseWriter, r *http.Request) {
+    // ... (decode request)
+    go w.processPayment(req)
+    wr.WriteHeader(http.StatusOK)
+}
+
+func (w *Worker) processPayment(req models.PaymentRequest) {
+    // ... (check for duplicates)
+
+    if isDefaultHealthy {
+        if w.callProcessor(config.DefaultProcessorURL, req) {
+            // ... (insert into database)
+            return
+        }
+    }
+
+    if isFallbackHealthy {
+        if w.callProcessor(config.FallbackProcessorURL, req) {
+            // ... (insert into database)
+            return
+        }
+    }
+}
+```
 
 ## 3. Key Algorithms and Patterns
 
