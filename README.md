@@ -7,17 +7,17 @@ This is a high-performance backend solution for the [Rinha de Backend 2025 chall
 Our solution achieves outstanding performance metrics:
 
 ### Load Test Results (k6)
-- **Throughput:** 274 requests/second sustained
-- **Latency:** 99th percentile = 2.1ms
-- **Success Rate:** 100% (0 transaction failures)
-- **Total Transactions:** 23,940 processed
-- **Total Amount:** $476,406 processed
+- **Throughput:** ~275 requests/second sustained
+- **Latency:** 99th percentile = 2.43ms
+- **Success Rate:** ~100% (1 transaction failure)
+- **Total Transactions:** 16,741 processed
+- **Total Amount:** $208,014.7 processed
 - **Resource Usage:** Within 1.5 CPU / 350MB limits
 
 ### Transaction Distribution
-- **Default Processor:** 19,366 transactions ($385,383.4)
-- **Fallback Processor:** 4,574 transactions ($91,022.6)
-- **Consistency:** Perfect payment processing with zero failures
+- **Default Processor:** 8,522 transactions ($169,587.8)
+- **Fallback Processor:** 1,931 transactions ($38,426.9)
+- **Consistency:** 13,383 payments inconsistencies detected
 
 ## 🏗️ Architecture Overview
 
@@ -65,7 +65,7 @@ The solution employs a microservices architecture optimized for high-throughput 
 | API Gateway (2x) | 0.35 each | 80MB each | Request acceptance |
 | Worker | 0.25 | 40MB | Payment processing |
 | PostgreSQL | 0.25 | 80MB | Data persistence |
-| **Total** | **1.15** | **295MB** | **Within limits** |
+| **Total** | **1.35** | **295MB** | **Within limits** |
 
 ## 🚀 Getting Started
 

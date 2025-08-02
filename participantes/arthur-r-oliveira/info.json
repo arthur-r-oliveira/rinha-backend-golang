@@ -1,5 +1,13 @@
 {
-  "nome": "rinha-backend-go",
+  "name": "Arthur Oliveira",
   "email": "arthurbsi@gmail.com",
-  "github_username": "arthur-r-oliveira"
+  "github_username": "arthur-r-oliveira",
+  "social": [
+    "https://www.linkedin.com/in/arthur-ricardo-de-oliveira-a07280b/"
+  ],
+  "source-code-repo": "https://github.com/arthur-r-oliveira/rinha-backend-golang",
+  "langs": ["go"],
+  "storages": ["postgresql"],
+  "messaging": [""],
+  "load-balancers": ["nginx"]
 }
