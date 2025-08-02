@@ -143,3 +143,7 @@ This implementation fully complies with the Rinha de Backend 2025 requirements:
 ## 🤝 Contributing
 
 This is a performance-focused implementation designed to demonstrate high-throughput, reliable payment processing within strict resource constraints.
+
+## 📚 Low-Level Design
+
+For a detailed explanation of the Go language concepts, application architecture, and design patterns used in this project, please refer to the [low-level-design.md](low-level-design.md) file.
