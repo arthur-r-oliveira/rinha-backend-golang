@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Configuration constants
@@ -24,7 +24,8 @@ var (
 	DefaultProcessorURL  string
 	FallbackProcessorURL string
 	WorkerURL            string
-	RedisClient          *redis.Client
+	PostgresDSN          string
+	PostgresPool         *pgxpool.Pool
 )
 
 func Init() {
@@ -40,22 +41,47 @@ func Init() {
 	}
 	WorkerURL = fmt.Sprintf("http://%s:%s", workerHost, workerPort)
 
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
+	PostgresDSN = os.Getenv("POSTGRES_DSN")
+
+	if PostgresDSN == "" {
+		log.Println("POSTGRES_DSN not set; skipping Postgres connection in config")
+		return
 	}
 
-	RedisClient = redis.NewClient(&redis.Options{
-		Addr: redisAddr,
-		Password: "", // no password set
-		DB: 0,  // use default DB
-	})
-
-	// Ping the Redis server to ensure connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := RedisClient.Ping(ctx).Err(); err != nil {
-		log.Fatalf("Could not connect to Redis: %v", err)
+
+	cfg, err := pgxpool.ParseConfig(PostgresDSN)
+	if err != nil {
+		log.Fatalf("Invalid POSTGRES_DSN: %v", err)
 	}
-	log.Println("Connected to Redis successfully!")
+	cfg.MinConns = 1
+	cfg.MaxConns = 4
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		log.Fatalf("Could not connect to Postgres: %v", err)
+	}
+	PostgresPool = pool
+
+	// Retry table creation with backoff
+	for i := 0; i < 5; i++ {
+		if _, err = pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS payments (
+            correlation_id TEXT PRIMARY KEY,
+            amount NUMERIC,
+            processor TEXT,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )`); err != nil {
+			log.Printf("Attempt %d: Could not ensure payments table: %v", i+1, err)
+			if i < 4 {
+				time.Sleep(time.Duration(i+1) * time.Second)
+				continue
+			}
+			log.Printf("Failed to create payments table after 5 attempts, continuing anyway: %v", err)
+		} else {
+			break
+		}
+	}
+
+	log.Println("Connected to Postgres successfully!")
 }

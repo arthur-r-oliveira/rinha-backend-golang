@@ -4,12 +4,15 @@ RUN apk --no-cache add wget
 
 WORKDIR /app
 
-COPY api/go.mod .
-COPY api/go.sum .
+COPY go.mod .
+COPY go.sum .
 
 RUN go mod download
 
-COPY api/ ./
+COPY . ./
+
+# Ensure dependencies are in sync
+RUN go mod tidy
 
 RUN go build -o /rinha-backend-go .
 

@@ -7,9 +7,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"rinha-backend-golang/config"
 	"rinha-backend-golang/models"
@@ -17,12 +18,15 @@ import (
 
 // Worker processes payment requests and interacts with external processors.
 type Worker struct {
-	httpClient *http.Client
+	httpClient      *http.Client
+	db              *pgxpool.Pool
+	defaultHealthy  atomic.Bool
+	fallbackHealthy atomic.Bool
 }
 
 // NewWorker creates a new Worker instance.
 func NewWorker() *Worker {
-	return &Worker{
+	w := &Worker{
 		httpClient: &http.Client{
 			Timeout: config.PaymentTimeout,
 			Transport: &http.Transport{
@@ -31,7 +35,11 @@ func NewWorker() *Worker {
 				IdleConnTimeout:     60 * time.Second,
 			},
 		},
+		db: config.PostgresPool,
 	}
+	w.defaultHealthy.Store(true)
+	w.fallbackHealthy.Store(true)
+	return w
 }
 
 // Start initializes the Worker and starts listening for requests.
@@ -67,26 +75,19 @@ func (w *Worker) handleProcessPayment(wr http.ResponseWriter, r *http.Request) {
 func (w *Worker) processPayment(req models.PaymentRequest) {
 	ctx := context.Background()
 
-	// Check if already processed
-	if processed, err := config.RedisClient.Exists(ctx, req.CorrelationID).Result(); err != nil {
-		log.Printf("Worker: Error checking if correlation ID %s exists in Redis: %v", req.CorrelationID, err)
+	// Check duplicate via payments table
+	var exists bool
+	if err := w.db.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM payments WHERE correlation_id=$1)", req.CorrelationID).Scan(&exists); err != nil {
+		log.Printf("Worker: duplicate check error: %v", err)
 		return
-	} else if processed == 1 {
+	}
+	if exists {
 		log.Printf("Worker: Correlation ID %s already processed, skipping.", req.CorrelationID)
 		return
 	}
 
-	// Get processor health from Redis
-	isDefaultHealthy, err := config.RedisClient.Get(ctx, "health:default").Bool()
-	if err != nil && err != redis.Nil {
-		log.Printf("Worker: Error getting default processor health from Redis: %v", err)
-		isDefaultHealthy = true // Assume healthy if Redis read fails
-	}
-	isFallbackHealthy, err := config.RedisClient.Get(ctx, "health:fallback").Bool()
-	if err != nil && err != redis.Nil {
-		log.Printf("Worker: Error getting fallback processor health from Redis: %v", err)
-		isFallbackHealthy = true // Assume healthy if Redis read fails
-	}
+	isDefaultHealthy := w.defaultHealthy.Load()
+	isFallbackHealthy := w.fallbackHealthy.Load()
 
 	log.Printf("Worker: Health status - Default: %t, Fallback: %t", isDefaultHealthy, isFallbackHealthy)
 
@@ -94,16 +95,10 @@ func (w *Worker) processPayment(req models.PaymentRequest) {
 		log.Printf("Worker: Attempting to call default processor for payment %s", req.CorrelationID)
 		if w.callProcessor(config.DefaultProcessorURL, req) {
 			req.Processor = "default"
-			if err := config.RedisClient.Incr(ctx, "summary:default:requests").Err(); err != nil {
-				log.Printf("Worker: Error incrementing default requests in Redis: %v", err)
+			if _, err := w.db.Exec(ctx, "INSERT INTO payments (correlation_id, amount, processor) VALUES ($1,$2,$3)", req.CorrelationID, req.Amount, req.Processor); err != nil {
+				log.Printf("Worker: Error inserting payment: %v", err)
 			}
-			if err := config.RedisClient.IncrByFloat(ctx, "summary:default:amount", req.Amount).Err(); err != nil {
-				log.Printf("Worker: Error incrementing default amount in Redis: %v", err)
-			}
-			if err := config.RedisClient.Set(ctx, req.CorrelationID, "processed", 0).Err(); err != nil { // Store correlation ID to prevent duplicates
-				log.Printf("Worker: Error setting processed ID %s in Redis: %v", req.CorrelationID, err)
-			}
-			log.Printf("Worker: Successfully processed payment %s with default processor and updated Redis.", req.CorrelationID)
+			log.Printf("Worker: Successfully processed payment %s with default processor and updated Postgres.", req.CorrelationID)
 			return
 		} else {
 			log.Printf("Worker: Failed to process payment %s with default processor.", req.CorrelationID)
@@ -114,16 +109,10 @@ func (w *Worker) processPayment(req models.PaymentRequest) {
 		log.Printf("Worker: Attempting to call fallback processor for payment %s", req.CorrelationID)
 		if w.callProcessor(config.FallbackProcessorURL, req) {
 			req.Processor = "fallback"
-			if err := config.RedisClient.Incr(ctx, "summary:fallback:requests").Err(); err != nil {
-				log.Printf("Worker: Error incrementing fallback requests in Redis: %v", err)
+			if _, err := w.db.Exec(ctx, "INSERT INTO payments (correlation_id, amount, processor) VALUES ($1,$2,$3)", req.CorrelationID, req.Amount, req.Processor); err != nil {
+				log.Printf("Worker: Error inserting payment: %v", err)
 			}
-			if err := config.RedisClient.IncrByFloat(ctx, "summary:fallback:amount", req.Amount).Err(); err != nil {
-				log.Printf("Worker: Error incrementing fallback amount in Redis: %v", err)
-			}
-			if err := config.RedisClient.Set(ctx, req.CorrelationID, "processed", 0).Err(); err != nil { // Store correlation ID to prevent duplicates
-				log.Printf("Worker: Error setting processed ID %s in Redis: %v", req.CorrelationID, err)
-			}
-			log.Printf("Worker: Successfully processed payment %s with fallback processor and updated Redis.", req.CorrelationID)
+			log.Printf("Worker: Successfully processed payment %s with fallback processor and updated Postgres.", req.CorrelationID)
 			return
 		} else {
 			log.Printf("Worker: Failed to process payment %s with fallback processor.", req.CorrelationID)
@@ -183,18 +172,24 @@ func (w *Worker) callProcessor(url string, req models.PaymentRequest) bool {
 func (w *Worker) handlePaymentsSummary(wr http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
-	defaultRequests, _ := config.RedisClient.Get(ctx, "summary:default:requests").Int64()
-	defaultAmount, _ := config.RedisClient.Get(ctx, "summary:default:amount").Float64()
-	fallbackRequests, _ := config.RedisClient.Get(ctx, "summary:fallback:requests").Int64()
-	fallbackAmount, _ := config.RedisClient.Get(ctx, "summary:fallback:amount").Float64()
-
-	defaultSummary := models.Summary{
-		TotalRequests: defaultRequests,
-		TotalAmount:   defaultAmount,
+	rows, err := w.db.Query(ctx, "SELECT processor, COUNT(*), COALESCE(SUM(amount),0) FROM payments GROUP BY processor")
+	if err != nil {
+		http.Error(wr, "db error", http.StatusInternalServerError)
+		return
 	}
-	fallbackSummary := models.Summary{
-		TotalRequests: fallbackRequests,
-		TotalAmount:   fallbackAmount,
+	var defaultSummary, fallbackSummary models.Summary
+	for rows.Next() {
+		var proc string
+		var cnt int64
+		var amt float64
+		if err := rows.Scan(&proc, &cnt, &amt); err != nil {
+			continue
+		}
+		if proc == "default" {
+			defaultSummary = models.Summary{TotalRequests: cnt, TotalAmount: amt}
+		} else if proc == "fallback" {
+			fallbackSummary = models.Summary{TotalRequests: cnt, TotalAmount: amt}
+		}
 	}
 
 	summary := models.PaymentSummaryResponse{
@@ -208,7 +203,9 @@ func (w *Worker) handlePaymentsSummary(wr http.ResponseWriter, r *http.Request) 
 
 func (w *Worker) handlePurgePayments(wr http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
-	config.RedisClient.Del(ctx, "summary:default:requests", "summary:default:amount", "summary:fallback:requests", "summary:fallback:amount")
+	if _, err := w.db.Exec(ctx, "TRUNCATE payments"); err != nil {
+		log.Printf("Worker: purge error: %v", err)
+	}
 	// Optionally, clear all processed IDs if needed, but be careful with large datasets
 	// For now, we assume correlation IDs are unique per test run and don't need explicit purging
 
@@ -231,13 +228,21 @@ func (w *Worker) checkProcessorHealth(name, url string) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url+"/payments/service-health", nil)
 	if err != nil {
 		log.Printf("Worker: Error creating health check request for %s: %v", name, err)
-		config.RedisClient.Set(ctx, "health:"+name, false, 0)
+		if name == "default" {
+			w.defaultHealthy.Store(false)
+		} else {
+			w.fallbackHealthy.Store(false)
+		}
 		return
 	}
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		log.Printf("Worker: Error calling health check for %s: %v", name, err)
-		config.RedisClient.Set(ctx, "health:"+name, false, 0)
+		if name == "default" {
+			w.defaultHealthy.Store(false)
+		} else {
+			w.fallbackHealthy.Store(false)
+		}
 		return
 	}
 	defer resp.Body.Close()
@@ -248,13 +253,25 @@ func (w *Worker) checkProcessorHealth(name, url string) {
 		var healthResp models.ServiceHealthResponse
 		if err := json.NewDecoder(resp.Body).Decode(&healthResp); err == nil {
 			log.Printf("Worker: Health check for %s - Failing: %t", name, healthResp.Failing)
-			config.RedisClient.Set(ctx, "health:"+name, !healthResp.Failing, 0)
+			if name == "default" {
+				w.defaultHealthy.Store(!healthResp.Failing)
+			} else {
+				w.fallbackHealthy.Store(!healthResp.Failing)
+			}
 		} else {
 			log.Printf("Worker: Error decoding health check response for %s: %v", name, err)
-			config.RedisClient.Set(ctx, "health:"+name, false, 0)
+			if name == "default" {
+				w.defaultHealthy.Store(false)
+			} else {
+				w.fallbackHealthy.Store(false)
+			}
 		}
 	} else {
 		log.Printf("Worker: Health check for %s failed with non-200 status: %d", name, resp.StatusCode)
-		config.RedisClient.Set(ctx, "health:"+name, false, 0)
+		if name == "default" {
+			w.defaultHealthy.Store(false)
+		} else {
+			w.fallbackHealthy.Store(false)
+		}
 	}
 }

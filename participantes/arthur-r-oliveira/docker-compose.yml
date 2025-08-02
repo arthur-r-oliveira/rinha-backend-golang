@@ -1,223 +1,76 @@
-version: '3.8'
+version: "3.9"
+
+networks:
+  default:
+    external: true
+    name: payment-processor
 
 services:
-  nginx:
-    image: nginx:1.25.1-alpine
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro,z
+  lb:
+    image: nginx:alpine
+    container_name: lb
     ports:
       - "9999:9999"
+    command: ["sh", "-c", "echo 'events { worker_connections 1024; } http { access_log off; upstream api { server api01:8080; server api02:8080; } upstream worker { server worker:8081; } server { listen 9999; location /payments-summary { proxy_pass http://worker; } location / { proxy_pass http://api; } } }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"]
     depends_on:
-      api01:
-        condition: service_healthy
-      api02:
-        condition: service_healthy
-      api03:
-        condition: service_healthy
-      api04:
-        condition: service_healthy
-      api05:
-        condition: service_healthy
-      worker:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - api01
+      - api02
     deploy:
       resources:
         limits:
-          cpus: '0.1'
-          memory: '40MB'
-    networks:
-      - payment-processor
-    restart: on-failure
+          cpus: "0.15"
+          memory: "15MB"
 
   api01:
     image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
-    hostname: api01
     environment:
-      - MODE=api
       - WORKER_HOST=worker
-      - WORKER_PORT=8081
-      - PORT=8080
-      - GOMAXPROCS=1
-      - REDIS_ADDR=redis:6379
+      - POSTGRES_DSN=postgresql://postgres:postgres@postgres:5432/rinha?sslmode=disable
+    depends_on:
+      - postgres
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: '40MB'
-    networks:
-      - payment-processor
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      redis:
-        condition: service_healthy
+          cpus: "0.35"
+          memory: "80MB"
 
   api02:
     image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
-    hostname: api02
     environment:
-      - MODE=api
       - WORKER_HOST=worker
-      - WORKER_PORT=8081
-      - PORT=8080
-      - GOMAXPROCS=1
-      - REDIS_ADDR=redis:6379
+      - POSTGRES_DSN=postgresql://postgres:postgres@postgres:5432/rinha?sslmode=disable
+    depends_on:
+      - postgres
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: '40MB'
-    networks:
-      - payment-processor
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  api03:
-    image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
-    hostname: api03
-    environment:
-      - MODE=api
-      - WORKER_HOST=worker
-      - WORKER_PORT=8081
-      - PORT=8080
-      - GOMAXPROCS=1
-      - REDIS_ADDR=redis:6379
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: '40MB'
-    networks:
-      - payment-processor
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  api04:
-    image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
-    hostname: api04
-    environment:
-      - MODE=api
-      - WORKER_HOST=worker
-      - WORKER_PORT=8081
-      - PORT=8080
-      - GOMAXPROCS=1
-      - REDIS_ADDR=redis:6379
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: '40MB'
-    networks:
-      - payment-processor
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  api05:
-    image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
-    hostname: api05
-    environment:
-      - MODE=api
-      - WORKER_HOST=worker
-      - WORKER_PORT=8081
-      - PORT=8080
-      - GOMAXPROCS=1
-      - REDIS_ADDR=redis:6379
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: '40MB'
-    networks:
-      - payment-processor
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      redis:
-        condition: service_healthy
+          cpus: "0.35"
+          memory: "80MB"
 
   worker:
     image: quay.io/rhn_support_arolivei/rinha-de-backend-2025-golang:latest
-    hostname: worker
+    ports:
+      - "8081:8081"
     environment:
-      - MODE=worker
       - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
       - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
-      - PORT=8081
-      - GOMAXPROCS=1
-      - REDIS_ADDR=redis:6379
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: '80MB'
-    networks:
-      - payment-processor
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+      - POSTGRES_DSN=postgresql://postgres:postgres@postgres:5432/rinha?sslmode=disable
+      - MODE=worker
     depends_on:
-      redis:
-        condition: service_healthy
-
-  redis:
-    image: redis:7.2.0-alpine
-    hostname: redis
-    command: redis-server --appendonly yes --maxmemory 20mb --maxmemory-policy allkeys-lru
+      - postgres
     deploy:
       resources:
         limits:
-          cpus: '0.1'
-          memory: '30MB'
-    networks:
-      - payment-processor
-    restart: on-failure
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+          cpus: "0.25"
+          memory: "40MB"
 
-networks:
-  payment-processor:
-    external: true
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=rinha
+      - POSTGRES_PASSWORD=postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "80MB" 

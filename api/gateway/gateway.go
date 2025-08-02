@@ -17,6 +17,7 @@ import (
 type APIGateway struct {
 	paymentQueue chan models.PaymentRequest
 	httpClient   *http.Client
+	logger       *PaymentLogger
 }
 
 // NewAPIGateway creates a new APIGateway instance.
@@ -31,6 +32,7 @@ func NewAPIGateway() *APIGateway {
 				IdleConnTimeout:     60 * time.Second,
 			},
 		},
+		logger: NewPaymentLogger(),
 	}
 }
 
@@ -62,6 +64,8 @@ func (api *APIGateway) handlePayments(w http.ResponseWriter, r *http.Request) {
 	}
 	select {
 	case api.paymentQueue <- req:
+		// Persist asynchronously
+		api.logger.LogPayment(req)
 		w.WriteHeader(http.StatusOK)
 	default:
 		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
