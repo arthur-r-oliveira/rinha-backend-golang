@@ -3,6 +3,26 @@
 
 This document provides a detailed explanation of the Rinha Backend application, written in Go. It's intended for developers with experience in other languages, like Java, C#, or PHP, to understand the Go-specific concepts and the application's architecture.
 
+## Table of Contents
+
+- [1. Go Language Fundamentals](#1-go-language-fundamentals)
+  - [1.1. Packages and Modules](#11-packages-and-modules)
+  - [1.2. Data Structures (Structs)](#12-data-structures-structs)
+  - [1.3. Functions and Methods](#13-functions-and-methods)
+  - [1.4. Concurrency (Goroutines and Channels)](#14-concurrency-goroutines-and-channels)
+- [2. Application Architecture](#2-application-architecture)
+  - [2.1. `main.go` - The Entry Point](#21-maingo---the-entry-point)
+  - [2.2. `config` Package](#22-config-package)
+  - [2.3. `models` Package](#23-models-package)
+  - [2.4. `gateway` Package](#24-gateway-package)
+  - [2.5. `worker` Package](#25-worker-package)
+- [3. Key Algorithms and Patterns](#3-key-algorithms-and-patterns)
+  - [3.1. Asynchronous Processing with a Queue](#31-asynchronous-processing-with-a-queue)
+  - [3.2. Health Check and Circuit Breaker](#32-health-check-and-circuit-breaker)
+  - [3.3. Database Connection Pooling](#33-database-connection-pooling)
+  - [3.4. Database Schema (DDL)](#34-database-schema-ddl)
+- [4. How to Run the Application](#4-how-to-run-the-application)
+
 ## 1. Go Language Fundamentals
 
 Go is a statically typed, compiled language known for its simplicity, efficiency, and strong support for concurrent programming. Here are some key concepts you'll encounter in this project:
