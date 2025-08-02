@@ -1,16 +1,17 @@
-# Rinha de Backend 2025 - Go Implementation
+# Rinha de Backend 2025 - Go, HAProxy, and UBI Implementation
 
-This is a high-performance backend solution for the [Rinha de Backend 2025 challenge](https://github.com/zanfranceschi/rinha-de-backend-2025), implemented in Go.
+This is a high-performance backend solution for the [Rinha de Backend 2025 challenge](https://github.com/zanfranceschi/rinha-de-backend-2025), implemented in Go with a focus on **reliability**, **consistency**, and **performance optimization**. The entire application stack runs on **Red Hat Universal Base Images (UBI)** and uses **HAProxy** for load balancing, showcasing a secure, stable, and enterprise-ready platform.
 
-For full details and source code, please visit my GitHub repository:
-[https://github.com/arthur-r-oliveira/rinha-backend-golang](https://github.com/arthur-r-oliveira/rinha-backend-golang)
+For full details and source code, please visit the main project `README.md`:
+[../../README.md](../../README.md)
 
 ## Key Features:
-- High Throughput (274 req/s sustained)
-- Low Latency (2.1ms p99)
+- High Throughput (~275 req/s sustained)
+- **Ultra-Low Latency (1.24ms p99)**
 - 100% Success Rate
-- Microservices Architecture (Nginx, API Gateway, Worker, PostgreSQL)
+- Microservices Architecture (HAProxy, API Gateway, Worker, PostgreSQL)
 - Asynchronous Processing & Fault Tolerance
+- **Built on Red Hat Universal Base Images (UBI) for enhanced security and stability**
 
 ## Getting Started:
-Refer to the main repository for detailed setup and testing instructions.
+Refer to the main project `README.md` for detailed setup and testing instructions.
